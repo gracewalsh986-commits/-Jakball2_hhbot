@@ -19,7 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Store reminders in memory (will be lost on restart)
-# Structure: {user_id: [{'time': datetime, 'message': str, 'chat_id': int, 'message_id': int}]}
+# Structure: {user_id: [{'time': datetime, 'message': str, 'chat_id': int}]}
 user_reminders = {}
 
 # --- Helper Functions ---
@@ -101,21 +101,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
-        "📖 **How to use Reminder Bot**\n\n"
-        "**Set a reminder:**\n"
+        "📖 *How to use Reminder Bot*\n\n"
+        "*Set a reminder:*\n"
         "`/remind <time> <message>`\n\n"
-        "**Time formats:**\n"
+        "*Time formats:*\n"
         "• `10s` - 10 seconds\n"
         "• `5m` - 5 minutes\n"
         "• `2h` - 2 hours\n"
         "• `1d` - 1 day\n"
         "• `15:30` - Today at 3:30 PM\n"
         "• `2024-12-25 15:30` - Specific date and time\n\n"
-        "**Examples:**\n"
+        "*Examples:*\n"
         "• `/remind 10m Call mom`\n"
         "• `/remind 2h Meeting`\n"
         "• `/remind 15:30 Take a break`\n\n"
-        "**Other commands:**\n"
+        "*Other commands:*\n"
         "• `/list` - View all reminders\n"
         "• `/clear` - Clear all reminders"
     )
@@ -162,8 +162,7 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reminder_data = {
             'time': reminder_time,
             'message': message,
-            'chat_id': chat_id,
-            'message_id': update.message.message_id
+            'chat_id': chat_id
         }
         user_reminders[user_id].append(reminder_data)
         
@@ -174,33 +173,31 @@ async def set_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📝 Message: {message}"
         )
         
-        # Schedule the reminder check
-        context.job_queue.run_once(
-            send_reminder,
-            when=reminder_time,
-            data={'user_id': user_id, 'reminder': reminder_data}
-        )
+        # Calculate delay in seconds
+        delay = (reminder_time - datetime.now()).total_seconds()
+        
+        # Schedule the reminder using asyncio
+        asyncio.create_task(schedule_reminder(update.effective_user.id, reminder_data, delay, context.bot))
         
     except Exception as e:
         logger.error(f"Error in set_reminder: {e}")
         await update.message.reply_text("❌ An error occurred. Please try again.")
 
-async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
-    """Send the reminder to the user"""
-    job_data = context.job.data
-    user_id = job_data['user_id']
-    reminder = job_data['reminder']
-    
+async def schedule_reminder(user_id, reminder_data, delay, bot):
+    """Schedule a reminder using asyncio sleep"""
     try:
-        await context.bot.send_message(
+        await asyncio.sleep(delay)
+        
+        # Send the reminder
+        await bot.send_message(
             chat_id=user_id,
-            text=f"⏰ **REMINDER!**\n\n{reminder['message']}",
+            text=f"⏰ *REMINDER!*\n\n{reminder_data['message']}",
             parse_mode='Markdown'
         )
         
         # Remove the reminder from storage
-        if user_id in user_reminders and reminder in user_reminders[user_id]:
-            user_reminders[user_id].remove(reminder)
+        if user_id in user_reminders and reminder_data in user_reminders[user_id]:
+            user_reminders[user_id].remove(reminder_data)
             
     except Exception as e:
         logger.error(f"Error sending reminder: {e}")
@@ -215,7 +212,7 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Sort reminders by time
     reminders = sorted(user_reminders[user_id], key=lambda x: x['time'])
     
-    text = "📋 **Your Reminders:**\n\n"
+    text = "📋 *Your Reminders:*\n\n"
     for i, reminder in enumerate(reminders, 1):
         time_str = format_reminder_time(reminder['time'])
         text += f"{i}. ⏰ {time_str}\n   📝 {reminder['message']}\n\n"
@@ -254,7 +251,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         reminders = sorted(user_reminders[user_id], key=lambda x: x['time'])
-        text = "📋 **Your Reminders:**\n\n"
+        text = "📋 *Your Reminders:*\n\n"
         for i, reminder in enumerate(reminders, 1):
             time_str = format_reminder_time(reminder['time'])
             text += f"{i}. ⏰ {time_str}\n   📝 {reminder['message']}\n\n"
@@ -270,17 +267,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     elif action == 'help':
         help_text = (
-            "📖 **How to use Reminder Bot**\n\n"
-            "**Set a reminder:**\n"
+            "📖 *How to use Reminder Bot*\n\n"
+            "*Set a reminder:*\n"
             "`/remind <time> <message>`\n\n"
-            "**Time formats:**\n"
+            "*Time formats:*\n"
             "• `10s` - 10 seconds\n"
             "• `5m` - 5 minutes\n"
             "• `2h` - 2 hours\n"
             "• `1d` - 1 day\n"
             "• `15:30` - Today at 3:30 PM\n"
             "• `2024-12-25 15:30` - Specific date and time\n\n"
-            "**Examples:**\n"
+            "*Examples:*\n"
             "• `/remind 10m Call mom`\n"
             "• `/remind 2h Meeting`\n"
             "• `/remind 15:30 Take a break`"
